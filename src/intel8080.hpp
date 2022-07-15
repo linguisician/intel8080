@@ -2,8 +2,8 @@
  * @file intel8080.hpp
  * @author Weiju Wang (weijuwang@aol.com)
  * @brief An emulator for the Intel 8080 microprocessor.
- * @version 0.1
- * @date 2022-07-13
+ * @version 0.2
+ * @date 2022-07-14
  * 
  * @copyright Copyright (c) 2022 Weiju Wang.
  * This file is part of `intel8080`.
@@ -239,12 +239,20 @@ namespace intel8080
 		void setFlag(const flagPos f, const bool condition) noexcept;
 
 		/**
+		 * @brief Checks whether the CPU is halted.
+		 * 
+		 * @return `true` The CPU is halted and will not run any further instructions unless an interrupt is requested.
+		 * @return `false` The CPU is not halted; `step(void)` will run the next instruction.
+		 */
+		bool getHalted(void) noexcept;
+
+		/**
 		 * @brief Loads raw bytes (be it data, a program, or both) to memory,
 		   typically an assembled program.
 		 * @param origin `const bytePair` The address in RAM to load the data to.
 		 * @param bytes `const std::initializer_list<byte>&` The bytes to load. 
 		 */
-		void load(const bytePair origin, const std::initializer_list<byte>& bytes) noexcept;
+		void load(const bytePair origin, const std::vector<byte>& bytes) noexcept;
 
 		/**
 		 * @brief Interrupts the CPU and prepares it to run the interrupt vector.
@@ -271,13 +279,15 @@ namespace intel8080
 		void step(void) noexcept;
 
 		#if INTEL8080_DEBUG__
-			/**
-			 * @brief Dumps the status of all registers and flags to the console.
-			 */
-			void dump(void) noexcept;
+		/**
+		 * @brief Dumps the status of all registers and flags to the console.
+		 */
+		void dump(void) noexcept;
 		#endif
 
+	#if not INTEL8080_DEBUG__
 	private:
+	#endif
 
 		/**
 		 * @brief The program state word (accumulator and flag register).
@@ -347,19 +357,6 @@ namespace intel8080
 		 */
 		template<typename T>
 		void updateFlags(const T result) noexcept;
-
-		/**
-		 * @brief Updates the carry flag based on the sum of two numbers.
-		 * That is, if `a + b` is greater than the maximum value `T` can hold,
-		   a carry must be required in order to store the sum, and so the carry
-		   flag is set to 1.
-		 *
-		 * @tparam T The type of numbers, either `byte` or `bytePair`.
-		 * @param a `T` The first number.
-		 * @param b `T` The second number.
-		 */
-		template<typename T>
-		void updateCarryFlag(const T a, const T b) noexcept;
 
 		/**
 		 * @brief Updates the carry flag based on the sum of the lower 4 bits of
@@ -524,14 +521,5 @@ namespace intel8080
 	T bitOf(const T n, const std::size_t pos) noexcept
 	{
 		return lowBitsOf(n, pos + 1) >> pos;
-	}
-
-	/**
-	 * @return `T` The two's complement of `n`.
-	 */
-	template<typename T>
-	T twosComp(const T n) noexcept
-	{
-		return ~n + 1;
 	}
 }

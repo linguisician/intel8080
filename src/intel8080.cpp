@@ -1,125 +1,118 @@
-/*
-Copyright (C) 2022 Weiju Wang.
+/**
+ * @file intel8080.cpp
+ * @author Weiju Wang (weijuwang@aol.com)
+ * @brief An emulator for the Intel 8080 microprocessor.
+ * @version 0.2
+ * @date 2022-07-14
+ * 
+ * @copyright Copyright (c) 2022 Weiju Wang.
+ * This file is part of `intel8080`.
+ * `intel8080` is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+ * `intel8080` is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+ * You should have received a copy of the GNU General Public License along with this program. If not, see <https://www.gnu.org/licenses/>. 
+ */
 
-This file is part of `intel8080`.
-
-`intel8080` is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
-
-`intel8080` is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License along with this program. If not, see <https://www.gnu.org/licenses/>. 
-*/
+// For an explanation of what each function and type is for, see `intel8080.hpp`.
 
 #include "./intel8080.hpp"
 
-#include <initializer_list>
 #include <limits>
 
 using namespace intel8080;
 
-std::uint8_t& reg::high(void) noexcept
-{
-	return pair[0];
-}
-
-std::uint8_t& reg::low(void) noexcept
+byte& regPair::high(void) noexcept
 {
 	return pair[1];
 }
 
-invalidAsm::invalidAsm(const std::size_t line)
-:
-	lineNum(line)
-{}
-
-const char* invalidAsm::what(void) const throw()
+byte& regPair::low(void) noexcept
 {
-	return "Unknown instruction";
+	return pair[0];
 }
 
 cpu::cpu(typeof portInputHandler pih, typeof portOutputHandler poh, typeof(ram) preAllocatedRam) noexcept
 :
 	ram(preAllocatedRam), portInputHandler(pih), portOutputHandler(poh)
 {
-	setFlag(flag(1), true);
+	setFlag(flagPos(1), true);
 }
 
-std::uint16_t& cpu::PSW(void) noexcept
+bytePair& cpu::PSW(void) noexcept
 {
 	return _PSW.full;
 }
 
-std::uint16_t& cpu::BC(void) noexcept
+bytePair& cpu::BC(void) noexcept
 {
 	return _BC.full;
 }
 
-std::uint16_t& cpu::DE(void) noexcept
+bytePair& cpu::DE(void) noexcept
 {
 	return _DE.full;
 }
 
-std::uint16_t& cpu::HL(void) noexcept
+bytePair& cpu::HL(void) noexcept
 {
 	return _HL.full;
 }
 
-std::uint8_t& cpu::A(void) noexcept
+byte& cpu::A(void) noexcept
 {
 	return _PSW.high();
 }
 
-std::uint8_t& cpu::flags(void) noexcept
+byte& cpu::flags(void) noexcept
 {
 	return _PSW.low();
 }
 
-std::uint8_t& cpu::B(void) noexcept
+byte& cpu::B(void) noexcept
 {
 	return _BC.high();
 }
 
-std::uint8_t& cpu::C(void) noexcept
+byte& cpu::C(void) noexcept
 {
 	return _BC.low();
 }
 
-std::uint8_t& cpu::D(void) noexcept
+byte& cpu::D(void) noexcept
 {
 	return _DE.high();
 }
 
-std::uint8_t& cpu::E(void) noexcept
+byte& cpu::E(void) noexcept
 {
 	return _DE.low();
 }
 
-std::uint8_t& cpu::H(void) noexcept
+byte& cpu::H(void) noexcept
 {
 	return _HL.high();
 }
 
-std::uint8_t& cpu::L(void) noexcept
+byte& cpu::L(void) noexcept
 {
 	return _HL.low();
 }
 
-std::uint8_t& cpu::atHL(void) noexcept
+byte& cpu::atHL(void) noexcept
 {
 	return ram[HL()];
 }
 
-std::uint16_t& cpu::atSP(void) noexcept
+bytePair& cpu::atSP(void) noexcept
 {
-	return *(std::uint16_t*)(ram + SP);
+	return *(bytePair*)(ram + SP);
 }
 
-int cpu::getFlag(const flag f) noexcept
+int cpu::getFlag(const flagPos f) noexcept
 {
 	return (flags() >> f) % 2;
 }
 
-void cpu::setFlag(const flag f, const bool condition) noexcept
+void cpu::setFlag(const flagPos f, const bool condition) noexcept
 {
 	if(condition)
 	{
@@ -131,7 +124,12 @@ void cpu::setFlag(const flag f, const bool condition) noexcept
 	}
 }
 
-void cpu::load(const std::size_t orig, const std::initializer_list<std::uint8_t>& code) noexcept
+bool cpu::getHalted(void) noexcept
+{
+	return halted;
+}
+
+void cpu::load(const bytePair orig, const std::vector<byte>& code) noexcept
 {
 	int i = 0;
 
@@ -142,16 +140,19 @@ void cpu::load(const std::size_t orig, const std::initializer_list<std::uint8_t>
 	}
 }
 
-void cpu::interrupt(const std::uint8_t interruptVector)
+void cpu::interrupt(const byte interruptVector) noexcept
 {
-	interruptsEnabled = false;
-	interruptPending = true;
-	this->interruptVector = interruptVector;
+	if(interruptsEnabled)
+	{
+		interruptsEnabled = false;
+		interruptPending = true;
+		this->interruptVector = interruptVector;
+	}
 }
 
-void cpu::step(void)
+void cpu::step(void) noexcept
 {
-	if(interruptPending)
+	if(interruptsEnabled && interruptPending)
 	{
 		exec(interruptVector);
 		interruptPending = false;
@@ -168,7 +169,6 @@ void cpu::step(void)
 	void cpu::dump(void) noexcept
 	{
 		std::cout
-		<< "===============================+==========\n"
 		<< "Registers                      | Flags\n"
 		<< "-------------------------------+----------\n"
 		<< " A  B  C  D  E  H  L   SP   PC | S Z A P C\n"
@@ -182,24 +182,25 @@ void cpu::step(void)
 		<< std::setw(2) << (int)L() << " "
 		<< std::setw(4) << SP << " "
 		<< std::setw(4) << PC << " | "
-		<< getFlag(flag::sign) << " "
-		<< getFlag(flag::zero) << " "
-		<< getFlag(flag::auxCarry) << " "
-		<< getFlag(flag::parity) << " "
-		<< getFlag(flag::carry)
-		<< "\n===============================+==========\n";
+		<< getFlag(flagPos::sign) << " "
+		<< getFlag(flagPos::zero) << " "
+		<< getFlag(flagPos::auxCarry) << " "
+		<< getFlag(flagPos::parity) << " "
+		<< getFlag(flagPos::carry) << "\n"
+		<< "Top of stack: " << atSP()
+		<< "\n";
 	}
 
 #endif
 
-std::uint8_t cpu::get8(void) noexcept
+byte cpu::get8(void) noexcept
 {
 	return ram[PC++];
 }
 
-std::uint16_t cpu::get16(void) noexcept
+bytePair cpu::get16(void) noexcept
 {
-	auto copy = *(std::uint16_t*)(ram + PC);
+	auto copy = *(bytePair*)(ram + PC);
 	PC += 2;
 	return copy;
 }
@@ -212,105 +213,103 @@ void cpu::updateFlags(const T result) noexcept
 	setFlag(parity, not __builtin_parity(result));
 }
 
-template<typename T>
-void cpu::updateCarryFlag(const T a, const T b) noexcept
-{
-	setFlag(carry, b > std::numeric_limits<T>::max() - a);
-}
-
-template<typename T>
-void cpu::updateAuxCarryFlag(const T a, const T b) noexcept
+void cpu::updateAuxCarryFlag(const byte a, const byte b) noexcept
 {
 	setFlag(auxCarry, lowBitsOf(b, 4) + lowBitsOf(a, 4) > 0b1111);
 }
 
-void cpu::inr(std::uint8_t& r8) noexcept
+void cpu::inr(byte& r8) noexcept
 {
 	setFlag(auxCarry, lowBitsOf(r8, 4) == 0b1111);
 	updateFlags(++r8);
 }
 
-void cpu::dcr(std::uint8_t& r8) noexcept
+void cpu::dcr(byte& r8) noexcept
 {
 	setFlag(auxCarry, lowBitsOf(r8, 4) == 0b0000);
 	updateFlags(--r8);
 }
 
-void cpu::dad(std::uint16_t& r16) noexcept
+void cpu::dad(bytePair& r16) noexcept
 {
-	setFlag(carry, r16 > std::numeric_limits<std::uint16_t>::max() - HL());
+	setFlag(carry, r16 > std::numeric_limits<bytePair>::max() - HL());
 	HL() += r16;
 }
 
-void cpu::add(const std::uint8_t r8, const bool withCarry /* = false */) noexcept
+void cpu::add(const byte r8, const bool withCarry /* = false */) noexcept
 {
-	std::uint8_t added = r8;
+	byte added = r8;
 	if(withCarry and getFlag(carry)) ++added;
 
-	updateCarryFlag(A(), added);
+	setFlag(carry, added > std::numeric_limits<byte>::max() - A());
 	updateAuxCarryFlag(A(), added);
 	updateFlags(A() += added);
 }
 
-void cpu::sub(const std::uint8_t r8, const bool withBorrow /* = false */) noexcept
+void cpu::sub(const byte r8, const bool withBorrow /* = false */) noexcept
 {
-	add(twosComp(r8), withBorrow);
+	byte added = r8;
+	if(withBorrow and getFlag(carry)) ++added;
+
+	setFlag(carry, added > A());
+	updateFlags(A() -= added);
 }
 
-void cpu::cmp(const std::uint8_t r8) noexcept
+void cpu::cmp(const byte r8) noexcept
 {
 	auto copyA = A();
 	sub(r8);
-	setFlag(carry, not getFlag(carry));
 	A() = copyA;
 }
 
-void cpu::logicAnd(const std::uint8_t r8) noexcept
+void cpu::logicAnd(const byte r8) noexcept
 {
 	updateFlags(A() &= r8);
 	setFlag(carry, false);
 }
 
-void cpu::logicOr(const std::uint8_t r8) noexcept
+void cpu::logicOr(const byte r8) noexcept
 {
 	updateFlags(A() |= r8);
 	setFlag(carry, false);
 }
 
-void cpu::logicXor(const std::uint8_t r8) noexcept
+void cpu::logicXor(const byte r8) noexcept
 {
 	updateFlags(A() ^= r8);
 	setFlag(carry, false);
 }
 
-void cpu::push(const std::uint16_t r16) noexcept
+void cpu::push(const bytePair r16) noexcept
 {
 	SP -= 2;
-	atSP() = swapBytes(r16);
+	atSP() = r16;
 }
 
-void cpu::pop(std::uint16_t& r16) noexcept
+void cpu::pop(bytePair& r16) noexcept
 {
-	r16 = swapBytes(atSP());
+	r16 = atSP();
 	SP += 2;
 
 	// Reset unused flags
-	setFlag((flag)5, 0);
-	setFlag((flag)3, 0);
-	setFlag((flag)1, 1);
+	setFlag((flagPos)5, 0);
+	setFlag((flagPos)3, 0);
+	setFlag((flagPos)1, 1);
 }
 
-void cpu::rst(const std::uint8_t which) noexcept
+void cpu::rst(const int rstNum) noexcept
 {
 	push(PC);
-	PC = 8 * which;
+	PC = 8 * rstNum;
 }
 
 void cpu::jmp(const bool condition) noexcept
 {
+	auto adr = get16();
+
 	if(condition)
 	{
-		PC = get16();
+		PC = adr;
 	}
 }
 
@@ -324,16 +323,18 @@ void cpu::ret(const bool condition) noexcept
 
 void cpu::call(const bool condition) noexcept
 {
+	auto adr = get16();
+
 	if(condition)
 	{
 		push(PC);
-		PC = get16();
+		PC = adr;
 	}
 }
 
-void cpu::exec(const std::uint8_t instr) noexcept
+void cpu::exec(const byte instr) noexcept
 {
-	std::uint16_t temp;
+	bytePair temp;
 
 	switch(instr)
 	{
@@ -364,10 +365,10 @@ void cpu::exec(const std::uint8_t instr) noexcept
 		case 0x1a: A() = ram[DE()]; break;
 
 		// SHLD a16
-		case 0x22: ram[get16()] = HL(); break;
+		case 0x22: *(bytePair*)(ram + get16()) = HL(); break;
 
 		// LHLD a16
-		case 0x2a: HL() = ram[get16()]; break;
+		case 0x2a: HL() = *(bytePair*)(ram + get16()); break;
 
 		// STA a16
 		case 0x32: ram[get16()] = A(); break;
@@ -422,7 +423,7 @@ void cpu::exec(const std::uint8_t instr) noexcept
 			temp = highBitsOf(A(), 1);		// Extract bit 7
 			setFlag(carry, temp);			// Carry flag <- bit 7
 			A() <<= 1;						// Left shift 1
-			A() += (std::uint8_t)temp;		// Bit 0 <- bit 7
+			A() += (byte)temp;		// Bit 0 <- bit 7
 			break;
 
 		// RRC
@@ -430,7 +431,7 @@ void cpu::exec(const std::uint8_t instr) noexcept
 			temp = lowBitsOf(A(), 1);				// Extract bit 0
 			setFlag(carry, temp);					// Carry flag <- bit 0
 			A() >>= 1;								// Right shift 1
-			A() += (1U << 7) * (std::uint8_t)temp;	// Bit 7 <- bit 0
+			A() += (1U << 7) * (byte)temp;	// Bit 7 <- bit 0
 			break;
 
 		// RAL
@@ -659,16 +660,16 @@ void cpu::exec(const std::uint8_t instr) noexcept
 
 		// XTHL
 		case 0xe3:
-			temp = swapBytes(*(std::uint16_t*)(ram + SP));
-			*(std::uint16_t*)(ram + SP) = swapBytes(HL());
+			temp = *(bytePair*)(ram + SP);
+			*(bytePair*)(ram + SP) = HL();
 			HL() = temp;
 			break;
 
 		// SPHL
-		case 0xf9: SP = swapBytes(HL()); break;
+		case 0xf9: SP = HL(); break;
 
 		// PCHL
-		case 0xe9: PC = swapBytes(HL()); break;
+		case 0xe9: PC = HL(); break;
 
 		// DI
 		case 0xf3: interruptsEnabled = false; break;
@@ -791,15 +792,4 @@ void cpu::exec(const std::uint8_t instr) noexcept
 
 		// All cases should be covered; no `default` is necessary.
 	}
-}
-
-std::uint16_t intel8080::swapBytes(const std::uint16_t n)
-{
-	return highBitsOf(n, 8) + lowBitsOf(n, 8) * (1U << 8);
-}
-
-std::vector<std::uint8_t> intel8080::assemble(const std::string& code)
-{
-	// TODO intel8080::assemble()
-	return {};
 }

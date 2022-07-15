@@ -1,0 +1,6 @@
+build/*
+html/*
+latex/*
+.vscode/*
+.cache/*
+intel8080.code-workspace
