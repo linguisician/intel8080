@@ -2,8 +2,8 @@
  * @file intel8080.cpp
  * @author Weiju Wang (weijuwang@aol.com)
  * @brief An emulator for the Intel 8080 microprocessor.
- * @version 0.2
- * @date 2022-07-14
+ * @version 0.3
+ * @date 2022-07-16
  * 
  * @copyright Copyright (c) 2022 Weiju Wang.
  * This file is part of `intel8080`.
@@ -17,6 +17,8 @@
 #include "./intel8080.hpp"
 
 #include <limits>
+#include <fstream>
+#include <map>
 
 using namespace intel8080;
 
@@ -792,4 +794,95 @@ void cpu::exec(const byte instr) noexcept
 
 		// All cases should be covered; no `default` is necessary.
 	}
+}
+
+byte intel8080::asciiToHex(const char c) noexcept
+{
+	if(c >= '0' and c <= '9')
+		return c - '0';
+	else if(c >= 'A' and c <= 'F')
+		return (c - 'A') + 10;
+	else
+		return 0; // This is here for completeness' sake, it doesn't actually do anything
+}
+
+bool intel8080::loadIntelHexFile(const std::string& filename, byte *const memory)
+{
+	std::ifstream hexFile(filename);
+	std::string contents;
+	int val;
+	byte byteCount;
+	bytePair adr;
+	byte recordType;
+	std::map<bytePair, std::vector<byte>> records;
+
+	// Open the file by creating a buffer, loading file contents into the buffer, and copying it as a string
+	if(hexFile.is_open()){
+		std::stringstream buffer;
+		buffer << hexFile.rdbuf();
+		contents = buffer.str();
+	}
+	else return false;
+
+	// From the beginning of each record...
+	for(int colonPos = 0; colonPos != std::string::npos; colonPos = contents.find(':', colonPos + 1))
+	{
+		// For each char until the end of the file OR the next colon, whichever comes first...
+		for(int i = 1; colonPos + i < contents.size() and contents[colonPos + i] != ':'; ++i)
+		{
+			int byteNum = (i - 1) / 2;
+
+			if((i - 1) % 2 == 0)
+			{
+				val = 0x10 * asciiToHex(contents[colonPos + i]);
+			}
+			else
+			{
+				val += asciiToHex(contents[colonPos + i]);
+
+				// Field type
+				switch(byteNum)
+				{
+					// Byte count
+					case 0:
+						byteCount = val;
+						break;
+
+					// Address, byte 1
+					case 1:
+						adr = val * 0x100;
+						break;
+
+					// Address, byte 2
+					case 2:
+						adr += val;
+						break;
+
+					// Record type
+					case 3:
+						recordType = val;
+						break;
+
+					// Data and checksum
+					default:
+						if(byteNum - 4 <= byteCount)
+						{
+							records[adr].push_back(val);
+						}
+						break;
+				}
+			}
+		}
+	}
+
+	// Write the records to memory
+	for(const auto& record : records)
+	{
+		for(int i = 0; i < record.second.size(); ++i)
+		{
+			memory[record.first + i] = record.second[i];
+		}
+	}
+
+	return true;
 }

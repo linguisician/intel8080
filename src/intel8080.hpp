@@ -2,8 +2,8 @@
  * @file intel8080.hpp
  * @author Weiju Wang (weijuwang@aol.com)
  * @brief An emulator for the Intel 8080 microprocessor.
- * @version 0.2
- * @date 2022-07-14
+ * @version 0.3
+ * @date 2022-07-16
  * 
  * @copyright Copyright (c) 2022 Weiju Wang.
  * This file is part of `intel8080`.
@@ -522,4 +522,21 @@ namespace intel8080
 	{
 		return lowBitsOf(n, pos + 1) >> pos;
 	}
+
+	/**
+	 * @param `c` A hexadecimal digit in ASCII.
+	 * @note This assumes `c` is a valid hex character.
+	 * @return The value of `c` when interpreted as a hexadecimal (base 16) digit.
+	 */
+	byte asciiToHex(const char c) noexcept;
+
+	/**
+	 * @brief Loads the data specified by a .hex file into memory.
+	 * @note Only record types 0x00 (Data) and 0x01 (End Of File) are supported. 
+	 *
+	 * @param filename `const std::string&` The name of the .hex file to load.
+	 * @param memory `byte *const` A pointer to at least 64K of continuous memory space. This will be modified.
+	 * @return `bool` Whether the load succeeded. If it failed, it means either the file doesn't exist or something went wrong with the checksums/formatting.
+	 */
+	bool loadIntelHexFile(const std::string& filename, byte *const memory);
 }
